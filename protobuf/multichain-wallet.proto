@@ -1,0 +1,96 @@
+syntax = "proto3";
+option go_package = "./protobuf/dal-wallet-go";
+package syncs;
+
+enum ReturnCode{
+  ERROR = 0;
+  SUCCESS = 1;
+}
+
+message PublicKey{
+  uint32 type = 1;
+  string public_key = 2;
+}
+
+message Address{
+  uint32 type = 1;
+  string address = 2;
+}
+
+message Token{
+  uint32 decimals = 1;
+  string address = 2;
+  string token_name = 3;
+  string collect_amount = 4;
+  string cold_amount = 5;
+}
+
+message BusinessRegisterRequest{
+  string  consumer_token = 1;
+  string  request_id = 2;
+  string  deposit_notify = 3;
+  string  withdraw_notify =4;
+  string  tx_flow_notify = 5;
+}
+
+message BusinessRegisterResponse{
+  ReturnCode Code = 1;
+  string Msg = 2;
+}
+
+message ExportAddressesRequest{
+  string  consumer_token = 1;
+  string request_id = 2;
+  repeated PublicKey public_keys = 3;
+}
+
+message ExportAddressesResponse {
+  ReturnCode Code = 1;
+  string msg = 2;
+  repeated Address addresses = 3;
+}
+
+message UnSignTransactionRequest {
+  string consumer_token = 1;
+  string request_id = 2;
+  string chain = 3;
+  string base64_tx = 4;
+}
+
+message UnSignTransactionResponse {
+  ReturnCode code = 1;
+  string msg = 2;
+  string un_sign_tx = 3;
+}
+
+message SignedTransactionRequest {
+  string consumer_token = 1;
+  string request_id = 2;
+  string chain = 3;
+  string base64_tx = 4;
+  string signature = 5;
+}
+
+message SignedTransactionResponse {
+  ReturnCode code = 1;
+  string msg = 2;
+  string signed_tx = 3;
+}
+
+message SetTokenAddressRequest{
+  ReturnCode code = 1;
+  string request_id = 2;
+  repeated Token token_list = 3;
+}
+
+message SetTokenAddressResponse {
+   ReturnCode code = 1;
+}
+
+service BusinessMiddleWireServices {
+  rpc businessRegister(BusinessRegisterRequest) returns (BusinessRegisterResponse) {}
+  rpc exportAddressesByPublicKeys(ExportAddressesRequest) returns (ExportAddressesResponse) {}
+  rpc createUnSignTransaction(UnSignTransactionRequest) returns(UnSignTransactionResponse){}
+  rpc buildSignedTransaction(SignedTransactionRequest) returns(SignedTransactionResponse){}
+  rpc setTokenAddress(SetTokenAddressRequest) returns (SetTokenAddressResponse) {}
+}
