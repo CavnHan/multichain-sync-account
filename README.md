@@ -1,0 +1,1 @@
+# mutichain-sync-account
