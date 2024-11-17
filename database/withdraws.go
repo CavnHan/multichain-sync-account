@@ -32,22 +32,35 @@ type Withdraws struct {
 
 type WithdrawsView interface {
 	QueryWithdrawsByHash(requestId string, hash common.Hash) (*Withdraws, error)
-	UnSendWithdrawsList(requestId string) ([]Withdraws, error)
+	UnSendWithdrawsList(string, string) (*Withdraws, error)
 	ApiWithdrawList(string, string, int, int, string) ([]Withdraws, int64)
-
 	SubmitWithdrawFromBusiness(requestId string, fromAddress common.Address, toAddress common.Address, TokenAddress common.Address, amount *big.Int) error
 }
 
 type WithdrawsDB interface {
 	WithdrawsView
-
-	StoreWithdraws(string, []Withdraws, uint64) error
-	UpdateTransactionStatus(requestId string, withdrawsList []Withdraws) error
+	StoreWithdraw(string, *Withdraws) error
+	UpdateTransaction(requestId string, signedTx string, status uint8) error
 	MarkWithdrawsToSend(requestId string, withdrawsList []Withdraws) error
 }
 
 type withdrawsDB struct {
 	gorm *gorm.DB
+}
+
+/**
+*@Description: select withdraws by transactionId
+*/
+func (db *withdrawsDB) UnSendWithdrawsList(requestId string, transactionId string) (*Withdraws, error) {
+	var withdraws Withdraws
+	err := db.gorm.Table("withdraws_"+requestId).Where("status = ? and guid = ?", 0, transactionId).Take(&withdraws).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &withdraws, nil
 }
 
 func (db *withdrawsDB) ApiWithdrawList(requestId string, address string, page int, pageSize int, order string) (withdraws []Withdraws, total int64) {
@@ -114,24 +127,26 @@ func (db *withdrawsDB) SubmitWithdrawFromBusiness(requestId string, fromAddress 
 	return nil
 }
 
-func (db *withdrawsDB) UpdateTransactionStatus(requestId string, withdrawsList []Withdraws) error {
-	for i := 0; i < len(withdrawsList); i++ {
+//TODO  UpdateTransaction 
+func (db *withdrawsDB) UpdateTransaction(requestId string,signedTx string,status uint8) error {
+	// for i := 0; i < len(withdrawsList); i++ {
 		var withdrawsSingle = Withdraws{}
 
-		result := db.gorm.Table("withdraws_" + requestId).Where(&Transactions{Hash: withdrawsList[i].Hash}).Take(&withdrawsSingle)
-		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return nil
-			}
-			return result.Error
-		}
-		withdrawsSingle.Status = 2
-		withdrawsSingle.Fee = withdrawsList[i].Fee
+		// result := db.gorm.Table("withdraws_" + requestId).Where(&Transactions{Hash: withdrawsList[i].Hash}).Take(&withdrawsSingle)
+		// if result.Error != nil {
+		// 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		// 		return nil
+		// 	}
+		// 	return result.Error
+		// }
+		withdrawsSingle.TxSignHex = signedTx
+		withdrawsSingle.Status = status
+		withdrawsSingle.Fee = nil
 		err := db.gorm.Table("withdraws_" + requestId).Save(&withdrawsSingle).Error
 		if err != nil {
 			return err
 		}
-	}
+	// }
 	return nil
 }
 
@@ -139,22 +154,22 @@ func NewWithdrawsDB(db *gorm.DB) WithdrawsDB {
 	return &withdrawsDB{gorm: db}
 }
 
-func (db *withdrawsDB) StoreWithdraws(requestId string, withdrawsList []Withdraws, withdrawsLength uint64) error {
-	result := db.gorm.Table("withdraws_"+requestId).CreateInBatches(&withdrawsList, int(withdrawsLength))
+func (db *withdrawsDB) StoreWithdraw(requestId string, withdrawsList *Withdraws) error {
+	result := db.gorm.Table("withdraws_"+requestId).Commit().Create(&withdrawsList)
 	return result.Error
 }
 
-func (db *withdrawsDB) UnSendWithdrawsList(requestId string) ([]Withdraws, error) {
-	var withdrawsList []Withdraws
-	err := db.gorm.Table("withdraws_"+requestId).Table("withdraws").Where("status = ?", 0).Find(&withdrawsList).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return withdrawsList, nil
-}
+// func (db *withdrawsDB) UnSendWithdrawsList(requestId string) ([]Withdraws, error) {
+// 	var withdrawsList []Withdraws
+// 	err := db.gorm.Table("withdraws_"+requestId).Table("withdraws").Where("status = ?", 0).Find(&withdrawsList).Error
+// 	if err != nil {
+// 		if errors.Is(err, gorm.ErrRecordNotFound) {
+// 			return nil, nil
+// 		}
+// 		return nil, err
+// 	}
+// 	return withdrawsList, nil
+// }
 
 func (db *withdrawsDB) MarkWithdrawsToSend(requestId string, withdrawsList []Withdraws) error {
 	for i := 0; i < len(withdrawsList); i++ {
