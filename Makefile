@@ -6,7 +6,7 @@ LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 multichain-sync:
-	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/multichain-sync
+	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd
 
 clean:
 	rm multichain-sync

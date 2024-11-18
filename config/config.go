@@ -27,12 +27,12 @@ type Config struct {
 	CacheConfig    CacheConfig
 	RpcServer      ServerConfig
 	MetricsServer  ServerConfig
+	ChainAccountRpc string
 }
 
 type ChainNodeConfig struct {
 	ChainId              uint64
 	ChainName            string
-	TradingModel         string
 	RpcUrl               string
 	StartingHeight       uint
 	Confirmations        uint
@@ -88,10 +88,10 @@ func LoadConfig(cliCtx *cli.Context) (Config, error) {
 func NewConfig(ctx *cli.Context) Config {
 	return Config{
 		Migrations: ctx.String(flags.MigrationsFlag.Name),
+		ChainAccountRpc: ctx.String(flags.ChainAccountRpcFlag.Name),
 		ChainNode: ChainNodeConfig{
 			ChainId:              ctx.Uint64(flags.ChainIdFlag.Name),
 			ChainName:            ctx.String(flags.ChainNameFlag.Name),
-			TradingModel:         ctx.String(flags.TradingModelFlag.Name),
 			RpcUrl:               ctx.String(flags.RpcUrlFlag.Name),
 			StartingHeight:       ctx.Uint(flags.StartingHeightFlag.Name),
 			Confirmations:        ctx.Uint(flags.ConfirmationsFlag.Name),

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/CavnHan/multichain-sync-account/cmd/multichain_sync"
 )
 
 var (
@@ -15,7 +16,7 @@ var (
 
 func main() {
 	log.SetDefault(log.NewLogger(log.NewTerminalHandlerWithLevel(os.Stderr, log.LevelInfo, true)))
-	app := NewCli(GitCommit, GitData)
+	app := multichain_sync.NewCli(GitCommit, GitData)
 	ctx := opio.WithInterruptBlocker(context.Background())
 	if err := app.RunContext(ctx, os.Args); err != nil {
 		log.Error("Application failed")

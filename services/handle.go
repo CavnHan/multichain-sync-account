@@ -3,17 +3,17 @@ package services
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"math/big"
 	"strconv"
 	"time"
-	"encoding/json"
-
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/google/uuid"
 
 	"github.com/CavnHan/multichain-sync-account/database"
+	"github.com/CavnHan/multichain-sync-account/database/dynamic"
 	dal_wallet_go "github.com/CavnHan/multichain-sync-account/protobuf/dal-wallet-go"
 	"github.com/CavnHan/multichain-sync-account/rpcclient/chain-account/account"
 )
@@ -52,9 +52,13 @@ func (bws *BusinessMiddleWireServices) BusinessRegister(ctx context.Context, req
 		log.Error("store business fail", "err", err)
 		return &dal_wallet_go.BusinessRegisterResponse{
 			Code: dal_wallet_go.ReturnCode_ERROR,
-			Msg:  "invalid params",
+			Msg:  "store db failed",
 		}, nil
 	}
+	
+	//create business table
+	dynamic.CreateTableFromTemplate(request.RequestId, bws.db)
+
 	return &dal_wallet_go.BusinessRegisterResponse{
 		Code: dal_wallet_go.ReturnCode_SUCCESS,
 		Msg:  "config business success",
@@ -64,7 +68,10 @@ func (bws *BusinessMiddleWireServices) BusinessRegister(ctx context.Context, req
 func (bws *BusinessMiddleWireServices) ExportAddressesByPublicKeys(ctx context.Context, request *dal_wallet_go.ExportAddressesRequest) (*dal_wallet_go.ExportAddressesResponse, error) {
 	var retAddresses []*dal_wallet_go.Address
 	var dbAddresses []database.Addresses
+	log.Info("request id", "request id", request.RequestId)
 	for _, value := range request.PublicKeys {
+		log.Info("public key", "public key", value.PublicKey)
+		log.Info("type", "type", value.Type)
 		address := bws.accountClient.ExportAddressByPubKey(strconv.Itoa(int(value.Type)), value.PublicKey)
 		item := &dal_wallet_go.Address{
 			Type:    value.Type,
@@ -232,7 +239,7 @@ func (bws *BusinessMiddleWireServices) BuildSignedTransaction(ctx context.Contex
 		log.Error("create un sign transaction fail", "err", err)
 		return nil, err
 	}
-	err = bws.db.Withdraws.UpdateTransaction(request.RequestId, returnTx.SignedTx, 1)
+	err = bws.db.Withdraws.UpdateWithdrawTx(request.RequestId, request.TransactionId, returnTx.SignedTx, nil, 1)
 	if err != nil {
 		log.Error("update signed tx to db fail", "err", err)
 		return nil, err
@@ -243,7 +250,6 @@ func (bws *BusinessMiddleWireServices) BuildSignedTransaction(ctx context.Contex
 		SignedTx: returnTx.SignedTx,
 	}, nil
 }
-
 
 func (bws *BusinessMiddleWireServices) SetTokenAddress(ctx context.Context, request *dal_wallet_go.SetTokenAddressRequest) (*dal_wallet_go.SetTokenAddressResponse, error) {
 	var tokenList []database.Tokens
@@ -262,7 +268,7 @@ func (bws *BusinessMiddleWireServices) SetTokenAddress(ctx context.Context, requ
 		tokenList = append(tokenList, token)
 	}
 
-	err := bws.db.Tokens.StoreTokens(request.RequestId,tokenList)
+	err := bws.db.Tokens.StoreTokens(request.RequestId, tokenList)
 	if err != nil {
 		log.Error("set token address fail", "err", err)
 		return nil, err

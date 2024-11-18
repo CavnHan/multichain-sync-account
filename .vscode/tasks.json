@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start Mutichain-Sync-Account  gRPC UI",
+            "type": "shell",
+            "command": "grpcui",
+            "args": [
+                "-plaintext",
+                "localhost:8987"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        }
+    ]
+}
