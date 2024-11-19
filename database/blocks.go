@@ -2,9 +2,11 @@ package database
 
 import (
 	"errors"
-	"gorm.io/gorm"
 	"math/big"
 
+	"gorm.io/gorm"
+
+	"github.com/CavnHan/multichain-sync-account/rpcclient"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -16,8 +18,8 @@ type Blocks struct {
 	Timestamp  uint64
 }
 
-func BlockHeaderFromHeader(header *types.Header) Blocks {
-	return Blocks{
+func BlockHeaderFromHeader(header *types.Header) rpcclient.BlockHeader {
+	return rpcclient.BlockHeader{
 		Hash:       header.Hash(),
 		ParentHash: header.ParentHash,
 		Number:     header.Number,
@@ -26,7 +28,7 @@ func BlockHeaderFromHeader(header *types.Header) Blocks {
 }
 
 type BlocksView interface {
-	LatestBlocks() (*Blocks, error)
+	LatestBlocks() (*rpcclient.BlockHeader, error)
 }
 
 type BlocksDB interface {
@@ -48,7 +50,7 @@ func (db *blocksDB) StoreBlockss(headers []Blocks) error {
 	return result.Error
 }
 
-func (db *blocksDB) LatestBlocks() (*Blocks, error) {
+func (db *blocksDB) LatestBlocks() (*rpcclient.BlockHeader, error) {
 	var header Blocks
 	result := db.gorm.Order("number DESC").Take(&header)
 	if result.Error != nil {
@@ -57,5 +59,5 @@ func (db *blocksDB) LatestBlocks() (*Blocks, error) {
 		}
 		return nil, result.Error
 	}
-	return &header, nil
+	return (*rpcclient.BlockHeader)(&header), nil
 }
