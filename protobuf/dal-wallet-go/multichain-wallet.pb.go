@@ -4,7 +4,7 @@
 // 	protoc        v5.29.0--rc1
 // source: proto/multichain-wallet.proto
 
-package mutichain
+package dal_wallet_go
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
