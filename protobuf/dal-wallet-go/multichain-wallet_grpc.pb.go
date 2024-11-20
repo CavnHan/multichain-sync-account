@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.29.0--rc1
-// source: protobuf/multichain-wallet.proto
+// source: proto/multichain-wallet.proto
 
-package dal_wallet_go
+package mutichain
 
 import (
 	context "context"
@@ -19,11 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BusinessMiddleWireServices_BusinessRegister_FullMethodName            = "/syncs.BusinessMiddleWireServices/businessRegister"
-	BusinessMiddleWireServices_ExportAddressesByPublicKeys_FullMethodName = "/syncs.BusinessMiddleWireServices/exportAddressesByPublicKeys"
-	BusinessMiddleWireServices_CreateUnSignTransaction_FullMethodName     = "/syncs.BusinessMiddleWireServices/createUnSignTransaction"
-	BusinessMiddleWireServices_BuildSignedTransaction_FullMethodName      = "/syncs.BusinessMiddleWireServices/buildSignedTransaction"
-	BusinessMiddleWireServices_SetTokenAddress_FullMethodName             = "/syncs.BusinessMiddleWireServices/setTokenAddress"
+	BusinessMiddleWireServices_BusinessRegister_FullMethodName            = "/proto.multichain.BusinessMiddleWireServices/businessRegister"
+	BusinessMiddleWireServices_ExportAddressesByPublicKeys_FullMethodName = "/proto.multichain.BusinessMiddleWireServices/exportAddressesByPublicKeys"
+	BusinessMiddleWireServices_CreateUnSignTransaction_FullMethodName     = "/proto.multichain.BusinessMiddleWireServices/createUnSignTransaction"
+	BusinessMiddleWireServices_BuildSignedTransaction_FullMethodName      = "/proto.multichain.BusinessMiddleWireServices/buildSignedTransaction"
+	BusinessMiddleWireServices_SetTokenAddress_FullMethodName             = "/proto.multichain.BusinessMiddleWireServices/setTokenAddress"
 )
 
 // BusinessMiddleWireServicesClient is the client API for BusinessMiddleWireServices service.
@@ -242,7 +242,7 @@ func _BusinessMiddleWireServices_SetTokenAddress_Handler(srv interface{}, ctx co
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var BusinessMiddleWireServices_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "syncs.BusinessMiddleWireServices",
+	ServiceName: "proto.multichain.BusinessMiddleWireServices",
 	HandlerType: (*BusinessMiddleWireServicesServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -267,5 +267,5 @@ var BusinessMiddleWireServices_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "protobuf/multichain-wallet.proto",
+	Metadata: "proto/multichain-wallet.proto",
 }

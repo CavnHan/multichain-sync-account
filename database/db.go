@@ -27,6 +27,7 @@ type DB struct {
 	Transactions TransactionsDB
 	Tokens       TokensDB
 	Business     BusinessDB
+	Internals    InternalsDB
 }
 
 func NewDB(ctx context.Context, dbConfig config.DBConfig) (*DB, error) {
@@ -70,10 +71,12 @@ func NewDB(ctx context.Context, dbConfig config.DBConfig) (*DB, error) {
 		Transactions: NewTransactionsDB(gorm),
 		Tokens:       NewTokensDB(gorm),
 		Business:     NewBusinessDB(gorm),
+		Internals:    NewInternalsDB(gorm),
 	}
 	return db, nil
 }
 
+//事务处理
 func (db *DB) Transaction(fn func(db *DB) error) error {
 	return db.gorm.Transaction(func(tx *gorm.DB) error {
 		txDB := &DB{
@@ -86,6 +89,7 @@ func (db *DB) Transaction(fn func(db *DB) error) error {
 			Transactions: NewTransactionsDB(tx),
 			Tokens:       NewTokensDB(tx),
 			Business:     NewBusinessDB(tx),
+			Internals:    NewInternalsDB(tx),
 		}
 		return fn(txDB)
 	})

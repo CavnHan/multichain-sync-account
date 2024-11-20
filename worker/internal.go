@@ -6,53 +6,53 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/CavnHan/multichain-sync-account/common/tasks"
 	"github.com/CavnHan/multichain-sync-account/config"
 	"github.com/CavnHan/multichain-sync-account/database"
 	"github.com/CavnHan/multichain-sync-account/rpcclient"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
-type Withdraw struct {
+
+type Internal struct {
 	rpcClient      *rpcclient.WalletChainAccountClient
 	db             *database.DB
-	chainNodeConf  *config.ChainNodeConfig
 	resourceCtx    context.Context
 	resourceCancel context.CancelFunc
 	tasks          tasks.Group
 	ticker         *time.Ticker
 }
 
-func NewWithdraw(cfg *config.Config, db *database.DB, shutdown context.CancelCauseFunc) (*Withdraw, error) {
+func NewInternal(cfg *config.Config, db *database.DB, shutdown context.CancelCauseFunc) (*Internal, error) {
 	resCtx, resCancel := context.WithCancel(context.Background())
-	return &Withdraw{
+	return &Internal{
 		db:             db,
-		chainNodeConf:  &cfg.ChainNode,
 		resourceCtx:    resCtx,
 		resourceCancel: resCancel,
 		tasks: tasks.Group{HandleCrit: func(err error) {
-			shutdown(fmt.Errorf("critical error in withdraw: %w", err))
+			shutdown(fmt.Errorf("critical error in internals: %w", err))
 		}},
 		ticker: time.NewTicker(time.Second * 5),
 	}, nil
 }
 
-func (w *Withdraw) Close() error {
+func (w *Internal) Close() error {
 	var result error
 	w.resourceCancel()
 	w.ticker.Stop()
-	log.Info("stop withdraw......")
+	log.Info("stop internal......")
 	if err := w.tasks.Wait(); err != nil {
-		result = errors.Join(result, fmt.Errorf("failed to await withdraw %w"), err)
+		result = errors.Join(result, fmt.Errorf("failed to await internal %w"), err)
 		return result
 	}
-	log.Info("stop withdraw success")
+	log.Info("stop internal success")
 	return nil
 }
 
-func (w *Withdraw) Start() error {
-	log.Info("start withdraw......")
+func (w *Internal) Start() error {
+	log.Info("start internals......")
 	w.tasks.Go(func() error {
 		for {
 			select {
@@ -64,32 +64,30 @@ func (w *Withdraw) Start() error {
 				}
 
 				for _, businessId := range businessList {
-					unSendTransactionList, err := w.db.Withdraws.UnSendWithdrawsList(businessId.BusinessUid)
+					unSendInternalTxList, err := w.db.Internals.UnSendInternalsList(businessId.BusinessUid)
 					if err != nil {
 						return err
 					}
 
-					for _, unSendTransaction := range unSendTransactionList {
-						txHash, err := w.rpcClient.SendTx(unSendTransaction.TxSignHex)
+					for _, unSendInternalTx := range unSendInternalTxList {
+						txHash, err := w.rpcClient.SendTx(unSendInternalTx.TxSignHex)
 						if err != nil {
 							log.Error("send transaction fail", "err", err)
 							return err
 						} else {
-							unSendTransaction.Hash = common.HexToHash(txHash)
-							unSendTransaction.Status = 2
+							unSendInternalTx.Hash = common.HexToHash(txHash)
+							unSendInternalTx.Status = 2
 						}
 					}
 
-					err = w.db.Withdraws.UpdateWithdrawStatus(businessId.BusinessUid, unSendTransactionList)
+					err = w.db.Internals.UpdateInternalstatus(businessId.BusinessUid, unSendInternalTxList)
 					if err != nil {
-						log.Error("update withdraw status fail", "err", err)
+						log.Error("update internals status fail", "err", err)
 						return err
 					}
-
 				}
-
 			case <-w.resourceCtx.Done():
-				log.Info("stop withdraw in worker")
+				log.Info("stop internals in worker")
 				return nil
 			}
 		}
