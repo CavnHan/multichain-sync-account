@@ -148,8 +148,9 @@ func (db *balancesDB) UpdateOrCreate(requestId string, balanceList []TokenBalanc
 			}
 			return nil
 		} else if err == nil {
+			// 0:充值；1:提现；2:归集；3:热转冷；4:冷转热
 			log.Info("handle balance update", "TxType", value.TxType)
-			if value.TxType == 0 { // 0:充值；1:提现；2:归集；3:热转冷；4:冷转热
+			if value.TxType == 0 { // 充值
 				userBalanceEntry.Balance = new(big.Int).Add(userBalanceEntry.Balance, value.Balance)
 				log.Info("Deposit balance update", "TxType", value.TxType, "balance", value.Balance, "afterBalance", userBalanceEntry.Balance)
 				errU := db.gorm.Table("balances" + requestId).Save(&userBalanceEntry).Error
@@ -159,7 +160,7 @@ func (db *balancesDB) UpdateOrCreate(requestId string, balanceList []TokenBalanc
 			} else if value.TxType == 1 { // 提现
 				for _, hotWallet := range hotWalletBalances {
 					if hotWallet.Address == value.Address && hotWallet.TokenAddress == value.TokenAddress {
-						hotWallet.LockBalance = big.NewInt(0)
+						hotWallet.LockBalance = new(big.Int).Sub(hotWallet.LockBalance,value.LockBalance)
 						errU := db.gorm.Table("balances" + requestId).Save(&hotWallet).Error
 						if errU != nil {
 							return errU
@@ -183,7 +184,7 @@ func (db *balancesDB) UpdateOrCreate(requestId string, balanceList []TokenBalanc
 						}
 					}
 				}
-			} else if value.TxType == 3 {
+			} else if value.TxType == 3 {//转冷
 				if len(hotWalletBalances) > 0 {
 					for _, hotWallet := range hotWalletBalances {
 						hotWallet.LockBalance = big.NewInt(0)
@@ -193,7 +194,7 @@ func (db *balancesDB) UpdateOrCreate(requestId string, balanceList []TokenBalanc
 						}
 					}
 				}
-			} else if value.TxType == 4 {
+			} else if value.TxType == 4 {//转热
 				if len(hotWalletBalances) > 0 {
 					for _, hotWallet := range hotWalletBalances {
 						hotWallet.Balance = new(big.Int).Add(hotWallet.Balance, value.Balance)

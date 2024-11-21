@@ -95,11 +95,13 @@ func (syncer *BaseSynchronizer) processBatch(headers []rpcclient.BlockHeader) er
 	if len(headers) == 0 {
 		return nil
 	}
-	headerMap := make(map[common.Hash]*rpcclient.BlockHeader, len(headers))
-	var businessTxChannel map[string]*TransactionsChannel
+	businessTxChannel := make(map[string]*TransactionsChannel)
+	blockHeaders := make([]database.Blocks, len(headers))
+
 	for i := range headers {
-		header := headers[i]
-		txList, err := syncer.rpcClient.GetBlockInfo(header.Number)
+		log.Info("Sync block data", "height", headers[i].Number)
+		blockHeaders[i] = database.Blocks{Hash: headers[i].Hash, ParentHash: headers[i].ParentHash, Number: headers[i].Number, Timestamp: headers[i].Timestamp}
+		txList, err := syncer.rpcClient.GetBlockInfo(headers[i].Number)
 		if err != nil {
 			log.Error("get block info fail", "err", err)
 			return err
@@ -114,13 +116,16 @@ func (syncer *BaseSynchronizer) processBatch(headers []rpcclient.BlockHeader) er
 				if !existToAddress && !existFromAddress {
 					continue
 				}
+
+				log.Info("Found transaction", "txHash", tx.Hash, "from", fromAddress, "to", toAddress)
+
 				txItem := &Transaction{
-					BusinessId:  businessId,
-					BlockNumber: header.Number,
-					FromAddress: tx.From,
-					ToAddress:   tx.To,
-					Hash:        tx.Hash,
-					//TODO fix protobuf
+					BusinessId:     businessId,
+					BlockNumber:    headers[i].Number,
+					FromAddress:    tx.From,
+					ToAddress:      tx.To,
+					Hash:           tx.Hash,
+					//TODO FIX BUG
 					TokenAddress:   "tx.TokenAddress",
 					ContractWallet: "tx.ContractWallet",
 					TxType:         "unknow",
@@ -134,32 +139,54 @@ func (syncer *BaseSynchronizer) processBatch(headers []rpcclient.BlockHeader) er
 				 * If the 'from' address is a cold wallet address and the 'to' address is a hot wallet address, it is a cold-to-hot transfer; call the callback interface to notifier the business side.
 				 */
 				if !existFromAddress && (existToAddress && toAddressType == 0) { // 充值
+					log.Info("Found deposit transaction", "txHash", tx.Hash, "from", fromAddress, "to", toAddress)
 					txItem.TxType = "deposit"
 				}
 
 				if (existFromAddress && FromAddressType == 1) && !existToAddress { // 提现
+					log.Info("Found withdraw transaction", "txHash", tx.Hash, "from", fromAddress, "to", toAddress)
 					txItem.TxType = "withdraw"
 				}
 
 				if (existFromAddress && FromAddressType == 0) && (existToAddress && toAddressType == 1) { // 归集
+					log.Info("Found collection transaction", "txHash", tx.Hash, "from", fromAddress, "to", toAddress)
 					txItem.TxType = "collection"
 				}
 
 				if (existFromAddress && FromAddressType == 1) && (existToAddress && toAddressType == 2) { // 热转冷
+					log.Info("Found hot2cold transaction", "txHash", tx.Hash, "from", fromAddress, "to", toAddress)
 					txItem.TxType = "hot2cold"
 				}
 
 				if (existFromAddress && FromAddressType == 2) && (existToAddress && toAddressType == 1) { // 热转冷
+					log.Info("Found cold2hot transaction", "txHash", tx.Hash, "from", fromAddress, "to", toAddress)
 					txItem.TxType = "cold2hot"
 				}
 				businessTransactions = append(businessTransactions, txItem)
 			}
-			businessTxChannel[businessId].BlockHeight = header.Number.Uint64()
-			businessTxChannel[businessId].Transactions = append(businessTxChannel[businessId].Transactions, businessTransactions...)
+			if len(businessTransactions) > 0 {
+				if businessTxChannel[businessId] == nil {
+					businessTxChannel[businessId] = &TransactionsChannel{
+						BlockHeight:  headers[i].Number.Uint64(),
+						Transactions: businessTransactions,
+					}
+				} else {
+					businessTxChannel[businessId].Transactions = append(businessTxChannel[businessId].Transactions, businessTransactions...)
+				}
+			}
 		}
-		headerMap[header.Hash] = &header
 	}
 
-	syncer.businessChannels <- businessTxChannel
+	if len(blockHeaders) > 0 {
+		log.Info("Store block headers success", "totalBlockHeader", len(blockHeaders))
+		if err := syncer.database.Blocks.StoreBlockss(blockHeaders); err != nil {
+			return err
+		}
+	}
+	log.Info("business tx channel", "businessTxChannel", businessTxChannel, "map length", len(businessTxChannel))
+	if len(businessTxChannel) > 0 {
+		syncer.businessChannels <- businessTxChannel
+	}
+
 	return nil
 }

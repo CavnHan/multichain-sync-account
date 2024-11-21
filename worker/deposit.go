@@ -7,7 +7,6 @@ import (
 
 	"math/big"
 	"strconv"
-	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -35,6 +34,7 @@ type Deposit struct {
 }
 
 func NewDeposit(cfg *config.Config, db *database.DB, shutdown context.CancelCauseFunc) (*Deposit, error) {
+	log.Info("New deposit", "ChainAccountRpc", cfg.ChainAccountRpc)
 	conn, err := grpc.NewClient(cfg.ChainAccountRpc, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Error("Connect to da retriever fail", "err", err)
@@ -76,7 +76,7 @@ func NewDeposit(cfg *config.Config, db *database.DB, shutdown context.CancelCaus
 		}
 		fromHeader = chainLatestBlockHeader
 	} else {
-		chainLatestBlockHeader, err := accountClient.GetBlockHeader(big.NewInt(int64(1)))
+		chainLatestBlockHeader, err := accountClient.GetBlockHeader(nil)
 		if err != nil {
 			log.Error("get block from chain account fail", "err", err)
 			return nil, err
@@ -84,9 +84,12 @@ func NewDeposit(cfg *config.Config, db *database.DB, shutdown context.CancelCaus
 		fromHeader = chainLatestBlockHeader
 	}
 
+	businessTxChannel := make(chan map[string]*TransactionsChannel)
+
 	baseSyncer := BaseSynchronizer{
-		loopInterval:     time.Duration(cfg.ChainNode.SynchronizerInterval) * time.Second,
+		loopInterval:     cfg.ChainNode.SynchronizerInterval,
 		headerBufferSize: cfg.ChainNode.BlocksStep,
+		businessChannels: businessTxChannel,
 		rpcClient:        accountClient,
 		blockBatch:       rpcclient.NewBatchBlock(accountClient, fromHeader, big.NewInt(int64(cfg.ChainNode.Confirmations))),
 		database:         db,
@@ -128,9 +131,11 @@ func (deposit *Deposit) Start() error {
 	}
 
 	deposit.tasks.Go(func() error {
+		log.Info("handle deposit task start")
 		for batch := range deposit.businessChannels {
+			log.Info("deposit business channel", "batch length", len(batch))
 			if err := deposit.handleBatch(batch); err != nil {
-				return fmt.Errorf("failed to handle batch:%w", err)
+				return fmt.Errorf("failed to handle batch, stopping L2 Synchronizer: %w", err)
 			}
 		}
 		return nil
@@ -139,23 +144,42 @@ func (deposit *Deposit) Start() error {
 }
 
 func (deposit *Deposit) handleBatch(batch map[string]*TransactionsChannel) error {
-	var transationFlowList []database.Transactions
-	var depositList []database.Deposits
-	var withdrawList []database.Withdraws
 
 	for _, businessId := range deposit.businessIds {
-		if businessId != batch[businessId].ChannelId {
+		_, exists := batch[businessId]
+		if !exists {
 			continue
 		}
+
+		var (
+			transationFlowList []database.Transactions
+			depositList        []database.Deposits
+			withdrawList       []database.Withdraws
+			balances           []database.TokenBalance
+		)
+
 		chainLatestBlock := batch[businessId].BlockHeight
 		batchTransactions := batch[businessId].Transactions
-		for i := range batchTransactions {
-			tx := batchTransactions[i]
+		log.Info("handle business flow", "businessId", businessId, "chainLatestBlock", batch[businessId].BlockHeight, "txn", len(batch[businessId].Transactions))
+
+		for _, tx := range batchTransactions {
+			log.Info("Request transaction from chain account", "txHash", tx.Hash)
 			txItem, err := deposit.rpcClient.GetTransactionByHash(tx.Hash)
 			if err != nil {
 				log.Info("get transaction by hash fail", "err", err)
 				return err
 			}
+
+			amountBigInt, _ := new(big.Int).SetString(txItem.Values[0].Value, 10)
+			tokenBalanceItem := &database.TokenBalance{
+				Address:      common.Address{},
+				TokenAddress: common.HexToAddress(tx.TokenAddress),
+				Balance:      amountBigInt,
+				LockBalance:  big.NewInt(0),
+				TxType:       0,
+			}
+
+			log.Info("get transaction success", "txHash", txItem.Hash)
 			txFee, _ := new(big.Int).SetString(txItem.Fee, 10)
 			txAmount, _ := new(big.Int).SetString(txItem.Values[0].Value, 10)
 			timestamp, _ := strconv.Atoi(txItem.Datetime)
@@ -194,6 +218,7 @@ func (deposit *Deposit) handleBatch(batch map[string]*TransactionsChannel) error
 				}
 				depositList = append(depositList, depositItme)
 				transationFlow.TxType = 0
+				tokenBalanceItem.Address = common.HexToAddress(txItem.Tos[0].Address)
 				break
 			case "withdraw":
 				withdrawItem := database.Withdraws{
@@ -213,9 +238,11 @@ func (deposit *Deposit) handleBatch(batch map[string]*TransactionsChannel) error
 				}
 				withdrawList = append(withdrawList, withdrawItem)
 				transationFlow.TxType = 1
+				tokenBalanceItem.LockBalance = txAmount
 				break
 			case "collection":
 				transationFlow.TxType = 2
+				tokenBalanceItem.LockBalance = txAmount
 				break
 			case "hot2cold":
 				transationFlow.TxType = 3
@@ -242,8 +269,15 @@ func (deposit *Deposit) handleBatch(batch map[string]*TransactionsChannel) error
 					}
 				}
 
+				if len(balances) > 0 {
+					log.Info("handle balances sunncess", "totalTx", len(balances))
+					if err := tx.Balances.UpdateOrCreate(businessId, balances); err != nil {
+						return err
+					}
+				}
+
 				if len(withdrawList) > 0 {
-					if err := tx.Withdraws.UpdateWithdrawStatus(businessId, withdrawList); err != nil {
+					if err := tx.Withdraws.UpdateWithdrawStatus(businessId, 3, withdrawList); err != nil {
 						return err
 					}
 				}

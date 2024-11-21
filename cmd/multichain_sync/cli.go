@@ -19,6 +19,7 @@ import (
 	"github.com/CavnHan/multichain-sync-account/config"
 	"github.com/CavnHan/multichain-sync-account/database"
 	flags2 "github.com/CavnHan/multichain-sync-account/flags"
+	"github.com/CavnHan/multichain-sync-account/notifier"
 	"github.com/CavnHan/multichain-sync-account/rpcclient"
 	"github.com/CavnHan/multichain-sync-account/rpcclient/chain-account/account"
 	"github.com/CavnHan/multichain-sync-account/services"
@@ -110,6 +111,21 @@ func runMigrations(ctx *cli.Context) error {
 	return db.ExecuteSQLMigration(cfg.Migrations)
 }
 
+func runNotify(ctx *cli.Context, shutdown context.CancelCauseFunc) (cliapp.Lifecycle, error) {
+	fmt.Println("running notify task...")
+	cfg, err := config.LoadConfig(ctx)
+	if err != nil {
+		log.Error("failed to load config", "err", err)
+		return nil, err
+	}
+	db, err := database.NewDB(ctx.Context, cfg.MasterDB)
+	if err != nil {
+		log.Error("failed to connect to database", "err", err)
+		return nil, err
+	}
+	return notifier.NewNotifier(db, shutdown)
+}
+
 func NewCli(GitCommit string, GitData string) *cli.App {
 	flags := flags2.Flags
 	return &cli.App{
@@ -122,6 +138,12 @@ func NewCli(GitCommit string, GitData string) *cli.App {
 				Flags:       flags,
 				Description: "Run rpc services",
 				Action:      cliapp.LifecycleCmd(runRpc),
+			},
+			{
+				Name:        "notify",
+				Flags:       flags,
+				Description: "Run rpc scanner wallet chain node",
+				Action:      cliapp.LifecycleCmd(runNotify),
 			},
 			{
 				Name:        "sync",

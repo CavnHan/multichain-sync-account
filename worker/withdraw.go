@@ -80,7 +80,7 @@ func (w *Withdraw) Start() error {
 						}
 					}
 
-					err = w.db.Withdraws.UpdateWithdrawStatus(businessId.BusinessUid, unSendTransactionList)
+					err = w.db.Withdraws.UpdateWithdrawStatus(businessId.BusinessUid, 2, unSendTransactionList)
 					if err != nil {
 						log.Error("update withdraw status fail", "err", err)
 						return err

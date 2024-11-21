@@ -13,6 +13,8 @@ func CreateTableFromTemplate(requestId string, db *database.DB) {
 	createDeposits(requestId, db)
 	createTransactions(requestId, db)
 	createWithdraws(requestId, db)
+	createInternals(requestId, db)
+
 }
 
 func createAddresses(requestId string, db *database.DB) {
@@ -48,5 +50,10 @@ func createTransactions(requestId string, db *database.DB) {
 func createWithdraws(requestId string, db *database.DB) {
 	tableName := "withdraws"
 	tableNameByChainId := fmt.Sprintf("withdraws_%s", requestId)
+	db.CreateTable.CreateTable(tableNameByChainId, tableName)
+}
+func createInternals(requestId string, db *database.DB) {
+	tableName := "internals"
+	tableNameByChainId := fmt.Sprintf("internals_%s", requestId)
 	db.CreateTable.CreateTable(tableNameByChainId, tableName)
 }

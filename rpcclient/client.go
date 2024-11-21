@@ -52,7 +52,7 @@ func (wac *WalletChainAccountClient) ExportAddressByPubKey(method, publicKey str
 
 func (wac *WalletChainAccountClient) GetBlockHeader(number *big.Int) (*BlockHeader, error) {
 	var height int64
-	if number != nil {
+	if number == nil {
 		height = 0
 	} else {
 		height = number.Int64()
